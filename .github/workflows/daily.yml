@@ -31,4 +31,4 @@ jobs:
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           LINE_TO_USER_ID: ${{ secrets.LINE_TO_USER_ID }}
         run: |
-          python send_figure_everyday_thru_line.py
+          python send_figure_everyday_thru_line_V2.py
