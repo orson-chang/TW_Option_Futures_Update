@@ -2,16 +2,28 @@ name: Daily TW Stock Update + LINE Push
 
 on:
   schedule:
-    - cron: "0 9 * * 1-5"   # 17:00 台北時間 (UTC+8)
+    - cron: "0 9 * * 1-5"
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   run:
     runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Taipei
+      CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+      CLOUDINARY_UPLOAD_PRESET: ${{ secrets.CLOUDINARY_UPLOAD_PRESET }}
+      CLOUDINARY_UPLOAD_FOLDER: ${{ secrets.CLOUDINARY_UPLOAD_FOLDER }}
+      LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+      LINE_TO_USER_ID: ${{ secrets.LINE_TO_USER_ID }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -23,12 +35,104 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run script
-        env:
-          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
-          CLOUDINARY_UPLOAD_PRESET: ${{ secrets.CLOUDINARY_UPLOAD_PRESET }}
-          CLOUDINARY_UPLOAD_FOLDER: ${{ secrets.CLOUDINARY_UPLOAD_FOLDER }}
-          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
-          LINE_TO_USER_ID: ${{ secrets.LINE_TO_USER_ID }}
+      - name: Update daily data
+        run: |
+          python run_daily_update.py --force
+
+      - name: Delay after update
+        run: |
+          sleep 10
+
+      - name: Validate latest ODS dates are today
+        run: |
+          python - <<'PY'
+          import sys
+          import zipfile
+          from datetime import datetime
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+
+          TODAY = datetime.now().strftime("%Y/%m/%d")
+          NS = {"table": "urn:oasis:names:tc:opendocument:xmlns:table:1.0"}
+
+          TARGETS = [
+              (Path("call_put_capital_flow.ods"), "買權"),
+              (Path("u_future_OI.ods"), "散戶微台未平倉"),
+          ]
+
+          def normalize_date(value: str) -> str | None:
+              raw = str(value).strip().replace("-", "/")
+              if not raw:
+                  return None
+              parts = raw.split("/")
+              if len(parts) != 3:
+                  return None
+              try:
+                  year, month, day = (int(x) for x in parts)
+              except ValueError:
+                  return None
+              try:
+                  return datetime(year, month, day).strftime("%Y/%m/%d")
+              except ValueError:
+                  return None
+
+          def first_cell_text(row: ET.Element) -> str:
+              for cell in row:
+                  if cell.tag.endswith("table-cell") or cell.tag.endswith("covered-table-cell"):
+                      return "".join(cell.itertext()).strip()
+              return ""
+
+          def latest_date_in_sheet(ods_path: Path, sheet_name: str) -> str | None:
+              if not ods_path.exists():
+                  raise FileNotFoundError(f"ODS file not found: {ods_path}")
+
+              with zipfile.ZipFile(ods_path, "r") as zf:
+                  root = ET.fromstring(zf.read("content.xml"))
+
+              table_node = None
+              for table in root.findall(".//table:table", NS):
+                  if table.attrib.get(f"{{{NS['table']}}}name") == sheet_name:
+                      table_node = table
+                      break
+              if table_node is None:
+                  raise RuntimeError(f"Sheet not found: {ods_path}/{sheet_name}")
+
+              latest = None
+              for row in table_node.findall("table:table-row", NS):
+                  text = first_cell_text(row)
+                  norm = normalize_date(text)
+                  if norm is None:
+                      continue
+                  if latest is None or norm > latest:
+                      latest = norm
+              return latest
+
+          failures = []
+          for ods_path, sheet_name in TARGETS:
+              latest = latest_date_in_sheet(ods_path, sheet_name)
+              print(f"[validate] {ods_path.name}/{sheet_name} latest={latest} expected={TODAY}")
+              if latest != TODAY:
+                  failures.append(f"{ods_path.name}/{sheet_name}: latest={latest}, expected={TODAY}")
+
+          if failures:
+              print("[validate] latest dates are not today's date", file=sys.stderr)
+              for item in failures:
+                  print(f"[validate] {item}", file=sys.stderr)
+              sys.exit(1)
+          PY
+
+      - name: Commit updated data files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add call_put_capital_flow.ods u_future_OI.ods call_capital_flow.csv put_capital_flow.csv
+          if git diff --cached --quiet; then
+            echo "No data files changed"
+          else
+            git commit -m "daily update data files"
+            git push
+          fi
+
+      - name: Send LINE images
         run: |
           python send_figure_everyday_thru_Line_V2.py
