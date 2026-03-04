@@ -565,8 +565,8 @@ def run_one_part(
     print(f"[{part_name}] START_DATE={start_date}")
     print(f"[{part_name}] END_DATE={end_date}")
 
-    if parse_ymd(end_date).date() <= parse_ymd(start_date).date():
-        print(f"[{part_name}] END_DATE <= START_DATE, skip update")
+    if parse_ymd(end_date).date() < parse_ymd(start_date).date():
+        print(f"[{part_name}] END_DATE < START_DATE, skip update")
         return 0
 
     try:
