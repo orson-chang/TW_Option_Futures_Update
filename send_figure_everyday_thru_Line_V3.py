@@ -75,6 +75,84 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def discover_cjk_font_families() -> list[str]:
+    try:
+        from matplotlib import font_manager as fm
+    except ModuleNotFoundError:
+        return []
+
+    try:
+        fm.fontManager = fm._load_fontmanager(try_read_cache=False)
+    except Exception:
+        pass
+
+    candidate_tokens = (
+        "notosanscjk",
+        "noto sans cjk",
+        "notoserifcjk",
+        "sourcehansans",
+        "source han sans",
+        "sourcehanserif",
+        "source han serif",
+        "wenquanyi",
+        "simhei",
+        "microsoft jhenghei",
+        "microsoft yahei",
+        "msjh",
+        "msyh",
+    )
+    font_paths: list[str] = []
+    seen_paths: set[str] = set()
+
+    def add_font_path(path_value: str | Path) -> None:
+        path_str = str(path_value)
+        if not path_str:
+            return
+        key = path_str.lower()
+        if key in seen_paths:
+            return
+        seen_paths.add(key)
+        font_paths.append(path_str)
+
+    for extension in ("ttf", "otf"):
+        for path in fm.findSystemFonts(fontext=extension):
+            lower = path.lower().replace("\\", "/")
+            if any(token in lower for token in candidate_tokens):
+                add_font_path(path)
+
+    for root in (
+        Path("/usr/share/fonts"),
+        Path("/usr/local/share/fonts"),
+        Path.home() / ".fonts",
+        Path.home() / ".local/share/fonts",
+        Path("C:/Windows/Fonts"),
+    ):
+        if not root.exists():
+            continue
+        for path in root.rglob("*"):
+            if path.suffix.lower() not in {".ttf", ".otf", ".ttc"}:
+                continue
+            lower = str(path).lower().replace("\\", "/")
+            if any(token in lower for token in candidate_tokens):
+                add_font_path(path)
+
+    families: list[str] = []
+    seen_families: set[str] = set()
+    for path in font_paths:
+        try:
+            fm.fontManager.addfont(path)
+            family = fm.FontProperties(fname=path).get_name()
+        except Exception:
+            continue
+        if not family:
+            continue
+        if family in seen_families:
+            continue
+        seen_families.add(family)
+        families.append(family)
+    return families
+
+
 def configure_matplotlib() -> None:
     try:
         import matplotlib
@@ -87,15 +165,32 @@ def configure_matplotlib() -> None:
 
     import matplotlib.pyplot as plt
 
-    plt.rcParams["font.sans-serif"] = [
+    discovered_families = discover_cjk_font_families()
+    preferred_families = discovered_families + [
         "Microsoft JhengHei",
         "Microsoft YaHei",
         "Noto Sans CJK TC",
+        "Noto Sans CJK SC",
+        "Noto Sans CJK JP",
+        "Noto Serif CJK TC",
+        "Noto Serif CJK SC",
+        "Noto Serif CJK JP",
         "SimHei",
+        "WenQuanYi Zen Hei",
         "Arial Unicode MS",
         "DejaVu Sans",
     ]
+    ordered_families: list[str] = []
+    seen: set[str] = set()
+    for family in preferred_families:
+        if family in seen:
+            continue
+        seen.add(family)
+        ordered_families.append(family)
+    plt.rcParams["font.family"] = ordered_families
+    plt.rcParams["font.sans-serif"] = ordered_families
     plt.rcParams["axes.unicode_minus"] = False
+    print(f"[fonts] matplotlib font candidates: {ordered_families}")
 
 
 def read_csv_required(csv_path: Path) -> pd.DataFrame:
