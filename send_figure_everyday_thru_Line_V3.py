@@ -164,8 +164,10 @@ def configure_matplotlib() -> None:
     matplotlib.use("Agg")
 
     import matplotlib.pyplot as plt
+    from matplotlib import font_manager as fm
 
     discovered_families = discover_cjk_font_families()
+    available_families = {entry.name for entry in fm.fontManager.ttflist}
     preferred_families = discovered_families + [
         "Microsoft JhengHei",
         "Microsoft YaHei",
@@ -185,8 +187,12 @@ def configure_matplotlib() -> None:
     for family in preferred_families:
         if family in seen:
             continue
+        if family not in available_families:
+            continue
         seen.add(family)
         ordered_families.append(family)
+    if not ordered_families:
+        ordered_families = ["DejaVu Sans"]
     plt.rcParams["font.family"] = ordered_families
     plt.rcParams["font.sans-serif"] = ordered_families
     plt.rcParams["axes.unicode_minus"] = False
