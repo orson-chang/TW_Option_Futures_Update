@@ -184,7 +184,11 @@ def fetch_fut_contracts_table_by_date(
     resp.raise_for_status()
 
     try:
-        tables = pd.read_html(StringIO(resp.text))
+        tables = pd.read_html(StringIO(resp.text), flavor="lxml")
+    except ImportError as exc:
+        raise RuntimeError(
+            "Import lxml failed. Use pip or conda to install the lxml package."
+        ) from exc
     except ValueError:
         return pd.DataFrame()
 

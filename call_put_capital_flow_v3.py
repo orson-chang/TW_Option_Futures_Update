@@ -91,9 +91,16 @@ def fetch_table_by_date(
     resp.raise_for_status()
     resp.encoding = resp.apparent_encoding or "utf-8"
 
-    tables = pd.read_html(StringIO(resp.text))
+    try:
+        tables = pd.read_html(StringIO(resp.text), flavor="lxml")
+    except ImportError as exc:
+        raise RuntimeError(
+            "Import lxml failed. Use pip or conda to install the lxml package."
+        ) from exc
+    except ValueError as exc:
+        raise RuntimeError(f"找不到任何表格: {query_date}") from exc
     if not tables:
-        raise RuntimeError("找不到任何表格")
+        raise RuntimeError(f"找不到任何表格: {query_date}")
     return tables[0]
 
 

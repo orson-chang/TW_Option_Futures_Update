@@ -390,6 +390,7 @@ def run_part1(start_date: str, end_date: str) -> dict[str, int]:
     rows_call: list[dict[str, object]] = []
     rows_put: list[dict[str, object]] = []
     rows_hedge: list[dict[str, object]] = []
+    part1_errors: list[str] = []
     last_call_row = read_last_csv_row(BASE_DIR / cp_module.OUT_CALL_CSV)
     last_put_row = read_last_csv_row(BASE_DIR / cp_module.OUT_PUT_CSV)
     last_call_sig = build_row_signature(last_call_row, cp_module.OUT_COLUMNS) if last_call_row else None
@@ -401,7 +402,9 @@ def run_part1(start_date: str, end_date: str) -> dict[str, int]:
             base_df, right_col, identity_col = cp_module.prepare_base_df(raw_df)
             v_call = cp_module.extract_for_right(base_df, right_col, identity_col, "買權")
             v_put = cp_module.extract_for_right(base_df, right_col, identity_col, "賣權")
-        except Exception:
+        except Exception as exc:
+            part1_errors.append(f"{query_date}: {exc}")
+            print(safe_console_text(f"[part1] skip {query_date}. reason={exc}"))
             continue
 
         ok_call = all(cp_module.has_all_values(v_call[k]) for k in ["5a", "5b", "5c", "5d"])
@@ -464,6 +467,9 @@ def run_part1(start_date: str, end_date: str) -> dict[str, int]:
             print(safe_console_text(f"日期: {query_date} | 自營商對沖(期貨): {fut_lots}/{fut_amt}"))
         except Exception:
             pass
+
+    if not rows_call and not rows_put and not rows_hedge and part1_errors:
+        raise RuntimeError(f"no valid option data in range. last_error={part1_errors[-1]}")
 
     out_ods = BASE_DIR / cp_module.OUT_ODS
     if rows_call or rows_put or rows_hedge:
