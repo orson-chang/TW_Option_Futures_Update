@@ -1,0 +1,15 @@
+更新今日檔案的描述
+代碼寫在 run_daily_update.py
+需求說明 : 找出最近一次更新的開始日期 ，設定 結束日期為今日，爬取網頁資料更新 call_put_capital_flow.ods 
+
+
+打開call_put_capital_flow.ods
+找到(欄,列) =(第一欄"日期" , 最新的列) 
+其值為最新更新的日期 紀錄為 Date_last_time
+
+設定開始日期: START_DATE = Date_last_time+1
+設定結束日期: END_DATE = 今日的日期
+
+使用call_put_capital_flow_v3.py 的代碼將 call_put_capital_flow.ods 更新
+更新數據 Append 到新的列，不要覆蓋到之前的
+如果 END_DATE <= START_DATE 則不更新

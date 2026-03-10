@@ -1,0 +1,18 @@
+此描述檔已由 V2 版本取代。
+
+舊版對應檔案：
+- `send_figure_everyday_thru_Line.py`
+
+目前請改用：
+- `send_figure_everyday_thru_Line_V2.py`
+
+目前請參考的新描述檔：
+- `描述檔/send_figure_everyday_thru_Line_V2_描述.txt`
+
+原因：
+1. 舊版流程依賴 ODS 內建圖表物件與圖表快取，容易出現圖表更新不同步、日期座標重疊、匯出結果不穩定等問題。
+2. V2 版本改為直接讀取資料列後用 Python 重新繪圖，再透過 `line_push_requests_cloudinary.py` 發送 LINE，行為已較穩定。
+
+若沒有特殊需求，後續維護與修改請以：
+- `send_figure_everyday_thru_Line_V2.py`
+為準。
