@@ -9,7 +9,6 @@ TW_Option_Futures_Update_repo/
 ├── call_put_capital_flow_v3.py
 ├── line_push_requests_cloudinary.py
 ├── run_daily_update.py
-├── send_figure_everyday_thru_Line_V2.py
 ├── send_figure_everyday_thru_Line_V3.py
 ├── TW_u_future_date.py
 ├── call_put_capital_flow.ods
